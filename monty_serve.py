@@ -10,18 +10,17 @@ import datetime
 import threading
 import string
 import pickle
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from queue import Queue, Empty
 import os.path
-
 from monty import MhGame
 from pprint import pprint
-
-
 
 games = {}
 result_q = Queue()
 shutdown_e = threading.Event()
 results = {}
+web_q = Queue()
 
 def reject(skt, addr, log):
     log.info("Connection throttled [TOOSOON]: {}".format(
@@ -33,7 +32,6 @@ def reject(skt, addr, log):
 def main(addr, port, delay):
     log = logging.getLogger()
     server_port = (addr, port)
-
 
     log.info("Starting server on {}".format(server_port))
 
@@ -104,18 +102,70 @@ def cleanstr(s, n=20):
 
     try:
         q = ''.join(x for x in s[:n] if x in string.printable[:64])
-
     except TypeError:
         q = "TypeError"
 
     return q
 
-def run_ui():
+class web_ui(BaseHTTPRequestHandler):
 
+    html = """<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Montey Hall Server</title>
+    <link rel="icon" href="favicon.ico" />
+    <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css" integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w" crossorigin="anonymous">
+  </head>
+  <body>
+    <div id="results"></div>
+    <script type="text/javascript">
+        addEventListener('DOMContentLoaded', (event) => {
+            console.log('Loading timer');
+            setInterval(() =>{
+                fetch('/data')
+                    .then(resp => resp.text())
+                    .then(text => {
+                        document.getElementById("results").innerHTML =
+                            "<pre>"+text+"</pre>";
+                    })
+                    .catch(err =>{
+                        console.log("Fetch error: " + err);
+                    })
+            }, 333)
+        });
+    </script>
+  </body>
+</html>"""
+
+    def do_GET(self):
+        log = logging.getLogger("HttpHandler")
+
+        if self.path == '/data':
+            #log.info("DATA REQ")
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+
+            self.wfile.write(web_q.get().encode())
+        elif self.path == '/':
+            #log.info("DEFAULT REQ")
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(web_ui.html.encode())
+        elif self.path.startswith('/favicon.ico'):
+            self.send_response(200)
+            self.send_header("Content-type", "image/x-icon")
+            self.end_headers()
+            with open('favicon.ico', 'rb') as f:
+                self.wfile.write(f.read())
+        else:
+            self.send_error(404, 'That is not possible.')
+def run_ui(debug=False):
+    "when debug is set it does not display on screen so you can see log messages."
     while True:
-
         try:
-
             while True:
                 r = result_q.get(block=False)
 
@@ -138,39 +188,35 @@ def run_ui():
         except Empty:
             pass
 
-        print(65*"\n")
+        now = str(datetime.datetime.now())
 
-        print(65*"=")
-        print("{}  ----  {} games".format(
-            datetime.datetime.now(),
-            len(games)))
+        if not debug:
+            print(65*"\n") #simple clear screen :)
+            print(65*"=")
+            print("{}  ----  {} games".format(
+                now,
+                len(games)))
 
-        for client, gameinfo in games.items():
-            g = gameinfo['game']
-            print("  {} :: {} :: {}".format(client,
-                                            g.name,
-                                            g.prize))
-        print(65*"=")
-
-
-        print("TOTAL SCORES")
-
-
-        print("{:20} {:>10} {:>20} {:>12}".format(
-            "NAME",
-            "GAMES",
-            "SCORE",
-            "ACCURACY(%)"
-        ))
-        print(65*"-")
+            for client, gameinfo in games.items():
+                g = gameinfo['game']
+                print("  {} :: {} :: {}".format(client,
+                                                g.name,
+                                                g.prize))
+            print(65*"=")
+            print("TOTAL SCORES")
+            print("{:20} {:>10} {:>20} {:>12}".format(
+                "NAME",
+                "GAMES",
+                "SCORE",
+                "ACCURACY(%)"
+            ))
+            print(65*"-")
 
         fmts = "{:20} {:10d} {:20d}     {:>3.3f}%"
         strs = []
         for name, z in results.items():
             usergames, score, wins = z
-
             acc = wins/usergames
-
             try:
                 strs.append(
                     (acc,
@@ -184,10 +230,18 @@ def run_ui():
                 strs.append(str(x))
                 continue
 
-        for s in sorted(strs, key=lambda x: x[0], reverse=True):
-            print(s[1])
+        sorted_scores = sorted(strs, key=lambda x: x[0], reverse=True)
 
-        print(65*"=")
+
+        if web_q.empty():
+            # if the web server needs data, feed it.
+            scoretext = [x[1] for x in sorted_scores]
+            web_q.put(now + "\r\n" + "\r\n".join(scoretext))
+
+        if not debug:
+            for s in sorted_scores:
+                print(s[1])
+            print(65*"=")
         time.sleep(0.2)
 
 if __name__ == "__main__":
@@ -202,6 +256,10 @@ if __name__ == "__main__":
         help='port the server listens on', required=False,
         default=8888)
     parser.add_argument(
+        '-u', '--ui-port', type=int,
+        help='port the web-ui listens on', required=False,
+        default=4181)
+    parser.add_argument(
         '-d', '--delay', type=int,
         help='minimum delay in seconds', required=False,
         default=1)
@@ -213,7 +271,6 @@ if __name__ == "__main__":
         logging.basicConfig(format=FORMAT, level=logging.DEBUG)
 
     args = parser.parse_args()
-
 
     # startup server thread
     # args must match main's parameters!
@@ -228,13 +285,22 @@ if __name__ == "__main__":
     if os.path.exists(savefile):
         with open(savefile, 'rb') as f:
             results = pickle.load(f)
-    #log = logging.getLogger()
+
+    print("Started http server on {}".format(
+        (args.addr, args.ui_port)))
+    # create web server thread
+    httpd = HTTPServer(
+                (args.addr, args.ui_port),
+                web_ui)
+    http_thread = threading.Thread(
+        name="HTTP server",
+        target = httpd.serve_forever
+    )
+    http_thread.daemon = True
+    http_thread.start()
+
     try:
-        if debug:
-            while True:
-                time.sleep(1)
-        else:
-            run_ui()
+        run_ui(debug)
     except KeyboardInterrupt:
         print("Ctrl-c, quit")
 
@@ -242,6 +308,7 @@ if __name__ == "__main__":
         pickle.dump(results, f)
 
     shutdown_e.set()
+    httpd.server_close()
     server_thread.join()
 
     print("Shutdown complete.")
