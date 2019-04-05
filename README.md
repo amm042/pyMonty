@@ -4,7 +4,7 @@ TCP client/server program to explore the The Monty Hall Problem.
 # Introduction
 Do you want to play a game? Let’s Make a Deal is a classic TV game show.  The scenario is such: you are given the opportunity to select one closed door of three, behind one of which there is a prize. The other two doors hide “goats” (or some other such “non-prize”), or nothing at all. Once you have made your selection, The host will open one of the remaining two doors, revealing that it does not contain the prize. He then asks you if you would like to switch your selection to the other unopened door or stay with your original choice.
 
-We are going to play Let’s Make a Deal over TCP. The game server runs on my machine, amm042.bucknell.edu:8888. It accepts TCP connections and has a simple text (utf-8) based interface.
+We are going to play Let’s Make a Deal over TCP. It accepts TCP connections and has a simple text (utf-8) based interface.
 
 # Protocol Description
 PLAYxxxxxxx
