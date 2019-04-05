@@ -21,7 +21,7 @@ The response is *PRIZzzzzz* where zzzzz is the utf-8 representation of your priz
 
 *DONE*
 This message terminates your session with the game server. You must send this message to receive your points.
-The response is GOODBYE. Once you receive the GOODBYE you may close your socket.
+The response is *GOODBYE*. Once you receive the *GOODBYE* you may close your socket.
 
 # Notes
 If the server doesn't understand your message, you will get the response *WTF?*.
