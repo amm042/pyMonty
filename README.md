@@ -7,24 +7,24 @@ Do you want to play a game? Let’s Make a Deal is a classic TV game show.  The 
 We are going to play Let’s Make a Deal over TCP. It accepts TCP connections and has a simple text (utf-8) based interface.
 
 # Protocol Description
-PLAYxxxxxxx
-This starts a new game where xxxxx is your Bucknell linux ID. Credit will only be given to users who specify their actual linux id.
-The response is HIHIxxxxxxx.
+*PLAYxxxxxxx*
+This starts a new game where xxxxx is your user name.
+The response is *HIHIxxxxxxx*.
 
-GUESn
+*GUESn*
 This is used to mark your initial guess. n is the door number and must be the string representation of the integer 0, 1, or 2.
-The response is HINTm. This represents the host opening door m to indicate door m does not contain the prize. The value m will obviously never be the same as n.
+The response is *HINTm*. This represents the host opening door m to indicate door m does not contain the prize. The value m will obviously never be the same as n.
 
-OPENn
+*OPENn*
 This is used to open the door n. You get whatever is behind this door and the game is essentially over. n must be the utf-8 representation of the integer 0, 1, or 2.
-The response is PRIZzzzzz where zzzzz is the utf-8 representation of your prize (an integer). Note, prizes may be negative as the server penalizes you if you don’t follow the protocol correctly!
+The response is *PRIZzzzzz* where zzzzz is the utf-8 representation of your prize (an integer). Note, prizes may be negative as the server penalizes you if you don’t follow the protocol correctly!
 
-DONE
+*DONE*
 This message terminates your session with the game server. You must send this message to receive your points.
 The response is GOODBYE. Once you receive the GOODBYE you may close your socket.
 
 # Notes
-If the server doesn't understand your message, you will get the response "WTF?".
+If the server doesn't understand your message, you will get the response *WTF?*.
 The doors are set randomly at the beginning of each game. Two doors have 0 points behind them and one lucky door holds 100 points.
 The server has some flexibility in operation, however, if it detects cheating (or generally abusing it) you will be penalized with negative points.
 The server displays accuracy, this is computed as the percent of games where you receive 100 points.
